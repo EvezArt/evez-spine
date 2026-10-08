@@ -52,6 +52,20 @@ class Status(str, Enum):
     ALERT         = "ALERT"
     INVESTIGATING = "INVESTIGATING"
 
+class AbsenceKind(str, Enum):
+    """First-class epistemic discontinuities. Absence is data, not a silent hole."""
+    NULL = "NULL"
+    SUPPRESSED = "SUPPRESSED"
+    TOMBSTONED = "TOMBSTONED"
+    SUBSTITUTED = "SUBSTITUTED"
+    CONTRADICTED = "CONTRADICTED"
+    TEMPORAL_ORPHAN = "TEMPORAL_ORPHAN"
+    LINEAGE_BREAK = "LINEAGE_BREAK"
+    ECHO = "ECHO"
+    UNACKNOWLEDGED_UNKNOWN = "UNACKNOWLEDGED_UNKNOWN"
+    INDETERMINATE = "INDETERMINATE"
+
+
 class SignalClass(str, Enum):
     BROADCAST   = "BROADCAST"
     LOG_ONLY    = "LOG_ONLY"
@@ -182,6 +196,39 @@ class Spine:
         return event
 
     # -- Domain-specific shortcuts ------------------------------------------
+
+    def log_absence(self, kind: AbsenceKind | str, subject_id: str,
+                    original_timestamp: Optional[float] = None,
+                    parent: Optional[str] = None,
+                    successors: Optional[List[str]] = None,
+                    reason: Optional[str] = None,
+                    actor: Optional[str] = None,
+                    last_known_representation: Any = None,
+                    replacement_id: Optional[str] = None,
+                    evidence_digest: Optional[str] = None,
+                    uncertainty: float = 1.0,
+                    epistemic_state: str = "UNKNOWN",
+                    caused_by: Optional[str] = None) -> Dict:
+        """Record absence explicitly so discontinuity can never masquerade as continuity."""
+        kind_value = kind.value if isinstance(kind, AbsenceKind) else str(kind)
+        payload = {
+            "absence_kind": kind_value,
+            "subject_id": subject_id,
+            "original_timestamp": original_timestamp,
+            "parent": parent,
+            "successors": successors or [],
+            "reason": reason,
+            "actor": actor or self.operator,
+            "last_known_representation": last_known_representation,
+            "replacement_id": replacement_id,
+            "evidence_digest": evidence_digest,
+            "uncertainty": uncertainty,
+            "epistemic_state": epistemic_state,
+        }
+        status = Status.INVESTIGATING.value if kind_value in (AbsenceKind.UNACKNOWLEDGED_UNKNOWN.value, AbsenceKind.CONTRADICTED.value, AbsenceKind.INDETERMINATE.value) else Status.CANONICAL.value
+        return self.log("EPISTEMIC_ABSENCE", payload, domain=Domain.RESEARCH.value,
+                        confidence=max(0.0, 1.0 - uncertainty), status=status,
+                        caused_by=caused_by, tags=["absence", kind_value.lower()])
 
     def log_fire_round(self, round_data: Dict, caused_by: Optional[str] = None) -> Dict:
         """Log a FIRE round. Computes full dimensional verdicts."""
