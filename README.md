@@ -38,6 +38,7 @@ Every event gets:
 - `status` — CANONICAL | CONTESTED | PENDING | VERIFIED | ALERT
 - `causedBy` — upstream trigger
 - `fire_event_id` — link to FIRE event in evez-os
+- `absence_kind` (for `EPISTEMIC_ABSENCE`) — NULL | SUPPRESSED | TOMBSTONED | SUBSTITUTED | CONTRADICTED | TEMPORAL_ORPHAN | LINEAGE_BREAK | ECHO | UNACKNOWLEDGED_UNKNOWN | INDETERMINATE
 
 ## Export
 
