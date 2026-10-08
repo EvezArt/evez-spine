@@ -211,6 +211,25 @@ class Spine:
                     caused_by: Optional[str] = None) -> Dict:
         """Record absence explicitly so discontinuity can never masquerade as continuity."""
         kind_value = kind.value if isinstance(kind, AbsenceKind) else str(kind)
+        valid_kinds = {k.value for k in AbsenceKind}
+        if kind_value not in valid_kinds:
+            raise ValueError(f"Unknown absence kind: {kind_value}")
+        if not subject_id:
+            raise ValueError("subject_id is required")
+        if not 0.0 <= uncertainty <= 1.0:
+            raise ValueError("uncertainty must be between 0.0 and 1.0")
+        if kind_value == AbsenceKind.SUBSTITUTED.value and not replacement_id:
+            raise ValueError("SUBSTITUTED absence requires replacement_id")
+        if kind_value == AbsenceKind.ECHO.value and last_known_representation is None:
+            raise ValueError("ECHO absence requires last_known_representation")
+        if kind_value in (AbsenceKind.TOMBSTONED.value, AbsenceKind.SUPPRESSED.value) and not reason:
+            raise ValueError(f"{kind_value} absence requires reason")
+        if kind_value == AbsenceKind.TEMPORAL_ORPHAN.value and parent is None and not successors:
+            raise ValueError("TEMPORAL_ORPHAN requires parent or successors")
+        if kind_value == AbsenceKind.LINEAGE_BREAK.value and parent is None and not evidence_digest:
+            raise ValueError("LINEAGE_BREAK requires parent or evidence_digest")
+        if kind_value == AbsenceKind.UNACKNOWLEDGED_UNKNOWN.value and epistemic_state != "UNKNOWN":
+            raise ValueError("UNACKNOWLEDGED_UNKNOWN must remain epistemic_state=UNKNOWN")
         payload = {
             "absence_kind": kind_value,
             "subject_id": subject_id,
@@ -225,7 +244,14 @@ class Spine:
             "uncertainty": uncertainty,
             "epistemic_state": epistemic_state,
         }
-        status = Status.INVESTIGATING.value if kind_value in (AbsenceKind.UNACKNOWLEDGED_UNKNOWN.value, AbsenceKind.CONTRADICTED.value, AbsenceKind.INDETERMINATE.value) else Status.CANONICAL.value
+        investigating = {
+            AbsenceKind.CONTRADICTED.value,
+            AbsenceKind.UNACKNOWLEDGED_UNKNOWN.value,
+            AbsenceKind.INDETERMINATE.value,
+            AbsenceKind.TEMPORAL_ORPHAN.value,
+            AbsenceKind.LINEAGE_BREAK.value,
+        }
+        status = Status.INVESTIGATING.value if kind_value in investigating else Status.CANONICAL.value
         return self.log("EPISTEMIC_ABSENCE", payload, domain=Domain.RESEARCH.value,
                         confidence=max(0.0, 1.0 - uncertainty), status=status,
                         caused_by=caused_by, tags=["absence", kind_value.lower()])
